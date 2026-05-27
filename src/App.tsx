@@ -221,6 +221,10 @@ function columnHint(puzzle: Puzzle, hintIndex: number) {
   return `Look at the ${place}: ${expression}${carryIn ? ` + carry ${carryIn}` : ''} gives ${resultLetter} and carries ${carryOut}.`;
 }
 
+function plural(value: number, singular: string, pluralForm = `${singular}s`) {
+  return `${value} ${value === 1 ? singular : pluralForm}`;
+}
+
 function App() {
   const [level, setLevel] = useState<Difficulty>(2);
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
@@ -343,7 +347,7 @@ function App() {
         ? `If you need a foothold: ${unsolved} = ${puzzle.solution[unsolved]}. Now re-check the nearby columns.`
         : 'Your digits match the hidden solution. Press “Check” to finish.';
     setHints((current) => [...current, nextHint]);
-    setFeedback({ kind: 'idle', text: 'Hints are for learning. Use it, then explain why it is true.' });
+    setFeedback({ kind: 'idle', text: 'Hint added. Use it, then explain why it must be true.' });
   }
 
   function renderWord(word: string) {
@@ -366,7 +370,10 @@ function App() {
     return <main className="app-shell loading-card">Preparing Cryptarithm Studio...</main>;
   }
 
-  const progress = letters.length === 0 ? 0 : Math.round((letters.filter((letter) => entries[letter]).length / letters.length) * 100);
+  const filledCount = letters.filter((letter) => entries[letter]).length;
+  const remainingCount = letters.length - filledCount;
+  const readyToCheck = remainingCount === 0;
+  const currentReward = rewardFor(puzzle, hints.length);
 
   return (
     <main className="app-shell">
@@ -377,9 +384,21 @@ function App() {
           <p className="hero-copy">Train column reasoning, carries, and digit elimination with unique addition puzzles.</p>
         </div>
         <div className="score-card" aria-label="Session rewards">
-          <span>⭐ {stats.stars}</span>
-          <span>{stats.solved} solved</span>
-          <span>🔥 {stats.streak} streak</span>
+          <div className="score-metrics">
+            <span className="score-metric">
+              <strong>⭐ {stats.stars}</strong>
+              <small>Stars</small>
+            </span>
+            <span className="score-metric">
+              <strong>{stats.solved}</strong>
+              <small>Solved</small>
+            </span>
+            <span className="score-metric">
+              <strong>🔥 {stats.streak}</strong>
+              <small>Streak</small>
+            </span>
+          </div>
+          <p className="reward-rules">Stars reset on refresh. Harder puzzles earn more; each hint lowers this puzzle’s stars, down to 1. A wrong check resets your streak.</p>
         </div>
       </section>
 
@@ -390,12 +409,9 @@ function App() {
               <p className="eyebrow">{difficultyLabel(puzzle.level)} · Level {puzzle.level}</p>
               <h2>Puzzle</h2>
             </div>
-            <div
-              className="progress-ring"
-              style={{ background: `conic-gradient(#22c55e ${progress}%, #e7edf4 0)` }}
-              aria-label={`${progress}% filled`}
-            >
-              {progress}%
+            <div className={readyToCheck ? 'check-status ready' : 'check-status'} aria-live="polite">
+              <span>{readyToCheck ? 'Ready to check' : 'Keep going'}</span>
+              <small>{readyToCheck ? 'All letters have digits' : `${plural(remainingCount, 'letter')} left`}</small>
             </div>
           </div>
 
@@ -417,8 +433,21 @@ function App() {
 
           <div className="action-row">
             <button className="primary" onClick={checkAnswer} disabled={building}>Check</button>
-            <button onClick={addHint} disabled={building}>Hint</button>
+            <button onClick={addHint} disabled={building || solvedThisPuzzle}>Hint</button>
             <button onClick={() => setEntries({})} disabled={building}>Clear</button>
+            <div className="reward-preview" aria-live="polite">
+              {solvedThisPuzzle ? (
+                <>
+                  <strong>Puzzle solved</strong>
+                  <span>Choose your next example when ready.</span>
+                </>
+              ) : (
+                <>
+                  <strong>Solve now: ⭐ {currentReward}</strong>
+                  <span>{hints.length === 0 ? 'Hints reduce stars.' : `${plural(hints.length, 'hint')} used.`}</span>
+                </>
+              )}
+            </div>
           </div>
 
           {hints.length > 0 && (
